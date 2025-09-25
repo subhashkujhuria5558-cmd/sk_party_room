@@ -268,8 +268,3 @@ io.on('connection', (socket) => {
         console.log('User disconnected:', socket.id);
     });
 });
-
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🎉 SK Party Room Server running on port ${PORT}`);
-});
