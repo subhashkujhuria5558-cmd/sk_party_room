@@ -1,22 +1,21 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
-
 app.use(cors());
 app.use(express.json());
+
+// Test route
+app.get("/", (req, res) => {
+  res.send("SK Party Room server running ✅");
+});
+
+// Railway port
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // MongoDB Connection
