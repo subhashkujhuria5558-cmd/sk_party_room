@@ -4,19 +4,40 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
+const passport = require("passport");
+const session = require("express-session");
 require("dotenv").config();
+
+// Models
+const User = require("./models/User");
+
+// Passport config
+require("./utils/passportConfig")(passport);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ✅ Express session (for Passport)
+app.use(
+  session({
+    secret: process.env.JWT_SECRET,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// ✅ Initialize passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // HTTP server for socket.io
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*", // In production, set to your frontend URL
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
 // ✅ Serve static frontend
@@ -31,9 +52,9 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Mount Routes (FIXED)
-const authRoutes = require("./auth"); // 👈 yahan se ./routes/auth hata diya
-app.use("/api/auth", authRoutes);
+// ✅ Auth Routes
+const authRoutes = require("./routes/auth");
+app.use("/auth", authRoutes);
 
 // ✅ Wallet Packages
 app.get("/api/wallet/packages", (req, res) => {
@@ -43,12 +64,12 @@ app.get("/api/wallet/packages", (req, res) => {
     { id: 3, price: 800, coins: 75000 },
     { id: 4, price: 2400, coins: 226500 },
     { id: 5, price: 4800, coins: 456000 },
-    { id: 6, price: 8000, coins: 765000 }
+    { id: 6, price: 8000, coins: 765000 },
   ];
   res.json({ success: true, packages });
 });
 
-// ✅ Middleware for Auth
+// ✅ Middleware for Auth (JWT)
 const jwt = require("jsonwebtoken");
 const auth = (req, res, next) => {
   try {
@@ -81,8 +102,8 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
       upiLinks: {
         phonepe: `phonepe://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`,
         googlepay: `tez://upi/pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`,
-        paytm: `paytmmp://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`
-      }
+        paytm: `paytmmp://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`,
+      },
     };
 
     res.json({ success: true, paymentData });
@@ -93,7 +114,6 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
 });
 
 // ✅ Verify Payment
-const User = require("./models/User"); 
 app.post("/api/wallet/verify-payment", auth, async (req, res) => {
   try {
     const { coins } = req.body;
@@ -117,7 +137,7 @@ const defaultGames = [
     entryFee: 100,
     minWin: 50,
     maxWin: 1000,
-    winRate: 0.45
+    winRate: 0.45,
   },
   {
     _id: "game2",
@@ -125,7 +145,7 @@ const defaultGames = [
     entryFee: 50,
     minWin: 25,
     maxWin: 500,
-    winRate: 0.55
+    winRate: 0.55,
   },
   {
     _id: "game3",
@@ -133,7 +153,7 @@ const defaultGames = [
     entryFee: 75,
     minWin: 30,
     maxWin: 750,
-    winRate: 0.5
+    winRate: 0.5,
   },
   {
     _id: "game4",
@@ -141,7 +161,7 @@ const defaultGames = [
     entryFee: 100,
     minWin: 50,
     maxWin: 2000,
-    winRate: 0.4
+    winRate: 0.4,
   },
   {
     _id: "game5",
@@ -149,7 +169,7 @@ const defaultGames = [
     entryFee: 150,
     minWin: 75,
     maxWin: 1500,
-    winRate: 0.42
+    winRate: 0.42,
   },
   {
     _id: "game6",
@@ -157,8 +177,8 @@ const defaultGames = [
     entryFee: 80,
     minWin: 40,
     maxWin: 800,
-    winRate: 0.48
-  }
+    winRate: 0.48,
+  },
 ];
 
 app.get("/api/games", (req, res) => {
@@ -190,7 +210,7 @@ app.post("/api/games/join", auth, async (req, res) => {
     res.json({
       success: true,
       sessionId: `session_${Date.now()}`,
-      remainingCoins: user.coins
+      remainingCoins: user.coins,
     });
   } catch (error) {
     console.error("Game join error:", error);
