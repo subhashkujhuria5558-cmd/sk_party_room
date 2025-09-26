@@ -186,6 +186,10 @@ app.post("/api/games/join", auth, async (req, res) => {
     const game = defaultGames.find((g) => g._id === gameId);
     const user = await User.findById(req.userId);
 
+    if (!user || !game) {
+      return res.status(400).json({ success: false, message: "Invalid game or user" });
+    }
+
     if (user.coins < game.entryFee) {
       return res.status(400).json({ success: false, message: "Insufficient coins" });
     }
@@ -209,6 +213,10 @@ app.post("/api/games/play", auth, async (req, res) => {
     const { gameId } = req.body;
     const game = defaultGames.find((g) => g._id === gameId);
     const user = await User.findById(req.userId);
+
+    if (!user || !game) {
+      return res.status(400).json({ success: false, message: "Invalid game or user" });
+    }
 
     const isWin = Math.random() < game.winRate;
     let winAmount = 0;
@@ -236,8 +244,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Start server
+// ✅ Start server (⚠️ FIXED: server.listen instead of app.listen)
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`SK Party Room running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`✅ SK Party Room running on port ${PORT}`);
 });
