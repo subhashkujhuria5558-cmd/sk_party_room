@@ -1,9 +1,9 @@
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose"); // ✅ Added import
-const http = require("http"); // ✅ For socket.io server
-const { Server } = require("socket.io"); // ✅ socket.io import
+const mongoose = require("mongoose");
+const http = require("http");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
 const app = express();
@@ -14,26 +14,24 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // change to your frontend URL in production
+    origin: "*", // In production, set to your frontend URL
     methods: ["GET", "POST"]
   }
 });
 
-// Test route
+// ✅ Serve static frontend
+app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
-  res.send("SK Party Room server running ✅");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Serve static files (public folder)
-app.use(express.static(path.join(__dirname, "public")));
-
-// MongoDB Connection
+// ✅ MongoDB Connection
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/skpartyroom")
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// User Model
+// ✅ User Schema
 const userSchema = new mongoose.Schema({
   googleId: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
@@ -49,23 +47,17 @@ const userSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now }
 });
-
 const User = mongoose.model("User", userSchema);
 
-// Routes
+// ✅ Auth setup
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Auth middleware
 const auth = (req, res, next) => {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, message: "No token provided" });
-    }
+    if (!token) return res.status(401).json({ success: false, message: "No token provided" });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.userId;
     next();
@@ -74,7 +66,7 @@ const auth = (req, res, next) => {
   }
 };
 
-// Google OAuth Login
+// ✅ Google OAuth Login
 app.post("/api/auth/google", async (req, res) => {
   try {
     const { token } = req.body;
@@ -87,7 +79,6 @@ app.post("/api/auth/google", async (req, res) => {
     const { sub: googleId, email, name, picture } = payload;
 
     let user = await User.findOne({ googleId });
-
     if (!user) {
       user = new User({
         googleId,
@@ -108,58 +99,37 @@ app.post("/api/auth/google", async (req, res) => {
     res.json({
       success: true,
       token: jwtToken,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        coins: user.coins,
-        diamonds: user.diamonds,
-        level: user.level,
-        gameStats: user.gameStats
-      }
+      user
     });
   } catch (error) {
     res.status(400).json({ success: false, message: "Authentication failed" });
   }
 });
 
-// Get user
+// ✅ Get current user
 app.get("/api/users/me", auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
-    res.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        coins: user.coins,
-        diamonds: user.diamonds,
-        level: user.level,
-        gameStats: user.gameStats
-      }
-    });
+    res.json({ success: true, user });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// Coin packages
+// ✅ Wallet Packages
 app.get("/api/wallet/packages", (req, res) => {
   const packages = [
-    { id: 1, price: 80, coins: 7400, display: "₹80 = 7,400 Coins" },
-    { id: 2, price: 400, coins: 37250, display: "₹400 = 37,250 Coins" },
-    { id: 3, price: 800, coins: 75000, display: "₹800 = 75,000 Coins" },
-    { id: 4, price: 2400, coins: 226500, display: "₹2,400 = 226,500 Coins" },
-    { id: 5, price: 4800, coins: 456000, display: "₹4,800 = 456,000 Coins" },
-    { id: 6, price: 8000, coins: 765000, display: "₹8,000 = 765,000 Coins" }
+    { id: 1, price: 80, coins: 7400 },
+    { id: 2, price: 400, coins: 37250 },
+    { id: 3, price: 800, coins: 75000 },
+    { id: 4, price: 2400, coins: 226500 },
+    { id: 5, price: 4800, coins: 456000 },
+    { id: 6, price: 8000, coins: 765000 }
   ];
   res.json({ success: true, packages });
 });
 
-// Create payment
+// ✅ Recharge Wallet
 app.post("/api/wallet/recharge", auth, async (req, res) => {
   try {
     const { amount, coins } = req.body;
@@ -168,8 +138,8 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
 
     const paymentData = {
       orderId: `SKPR${Date.now()}`,
-      amount: amount,
-      coins: coins,
+      amount,
+      coins,
       upiLinks: {
         phonepe: `phonepe://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`,
         googlepay: `tez://upi/pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`,
@@ -183,39 +153,33 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
   }
 });
 
-// Verify payment
+// ✅ Verify Payment
 app.post("/api/wallet/verify-payment", auth, async (req, res) => {
   try {
     const { coins } = req.body;
     const user = await User.findById(req.userId);
     user.coins += coins;
     await user.save();
-
-    res.json({
-      success: true,
-      message: "Payment verified successfully",
-      newBalance: user.coins
-    });
+    res.json({ success: true, newBalance: user.coins });
   } catch (error) {
     res.status(500).json({ success: false, message: "Payment verification failed" });
   }
 });
 
-// Games
+// ✅ Games
 const defaultGames = [
-  { _id: "game1", name: "Slot Frenzy", icon: "🎰", entryFee: 100, minWin: 50, maxWin: 1000, winRate: 0.45 },
-  { _id: "game2", name: "Fishing Game", icon: "🐟", entryFee: 50, minWin: 25, maxWin: 500, winRate: 0.55 },
-  { _id: "game3", name: "Fruit Crush", icon: "🍓", entryFee: 75, minWin: 30, maxWin: 750, winRate: 0.5 },
-  { _id: "game4", name: "Lucky Wheel", icon: "🎡", entryFee: 100, minWin: 50, maxWin: 2000, winRate: 0.4 },
-  { _id: "game5", name: "Card Master", icon: "🃏", entryFee: 150, minWin: 75, maxWin: 1500, winRate: 0.42 },
-  { _id: "game6", name: "Number Blast", icon: "🔢", entryFee: 80, minWin: 40, maxWin: 800, winRate: 0.48 }
+  { _id: "game1", name: "Slot Frenzy", entryFee: 100, minWin: 50, maxWin: 1000, winRate: 0.45 },
+  { _id: "game2", name: "Fishing Game", entryFee: 50, minWin: 25, maxWin: 500, winRate: 0.55 },
+  { _id: "game3", name: "Fruit Crush", entryFee: 75, minWin: 30, maxWin: 750, winRate: 0.5 },
+  { _id: "game4", name: "Lucky Wheel", entryFee: 100, minWin: 50, maxWin: 2000, winRate: 0.4 },
+  { _id: "game5", name: "Card Master", entryFee: 150, minWin: 75, maxWin: 1500, winRate: 0.42 },
+  { _id: "game6", name: "Number Blast", entryFee: 80, minWin: 40, maxWin: 800, winRate: 0.48 }
 ];
 
 app.get("/api/games", (req, res) => {
   res.json({ success: true, games: defaultGames });
 });
 
-// Join game
 app.post("/api/games/join", auth, async (req, res) => {
   try {
     const { gameId } = req.body;
@@ -223,9 +187,7 @@ app.post("/api/games/join", auth, async (req, res) => {
     const user = await User.findById(req.userId);
 
     if (user.coins < game.entryFee) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Insufficient coins" });
+      return res.status(400).json({ success: false, message: "Insufficient coins" });
     }
 
     user.coins -= game.entryFee;
@@ -242,7 +204,6 @@ app.post("/api/games/join", auth, async (req, res) => {
   }
 });
 
-// Play game
 app.post("/api/games/play", auth, async (req, res) => {
   try {
     const { gameId } = req.body;
@@ -253,9 +214,7 @@ app.post("/api/games/play", auth, async (req, res) => {
     let winAmount = 0;
 
     if (isWin) {
-      winAmount = Math.floor(
-        Math.random() * (game.maxWin - game.minWin) + game.minWin
-      );
+      winAmount = Math.floor(Math.random() * (game.maxWin - game.minWin) + game.minWin);
       user.coins += winAmount;
       user.gameStats.gamesWon += 1;
       user.gameStats.totalWinnings += winAmount;
@@ -263,18 +222,13 @@ app.post("/api/games/play", auth, async (req, res) => {
 
     await user.save();
 
-    res.json({
-      success: true,
-      isWin,
-      winAmount,
-      newBalance: user.coins
-    });
+    res.json({ success: true, isWin, winAmount, newBalance: user.coins });
   } catch (error) {
     res.status(500).json({ success: false, message: "Game play failed" });
   }
 });
 
-// Socket.io
+// ✅ Socket.io
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
   socket.on("disconnect", () => {
@@ -282,8 +236,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
+// ✅ Start server
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 SK Party Room running on port ${PORT}`);
 });
