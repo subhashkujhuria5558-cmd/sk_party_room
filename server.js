@@ -31,8 +31,8 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Mount Routes
-const authRoutes = require("./routes/auth");
+// ✅ Mount Routes (FIXED)
+const authRoutes = require("./auth"); // 👈 yahan se ./routes/auth hata diya
 app.use("/api/auth", authRoutes);
 
 // ✅ Wallet Packages
@@ -93,7 +93,7 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
 });
 
 // ✅ Verify Payment
-const User = require("./models/User"); // User model ko alag rakha to import karo
+const User = require("./models/User"); 
 app.post("/api/wallet/verify-payment", auth, async (req, res) => {
   try {
     const { coins } = req.body;
