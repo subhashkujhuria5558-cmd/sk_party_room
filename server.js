@@ -6,6 +6,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const passport = require("passport");
 const session = require("express-session");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 // Models
@@ -21,7 +22,7 @@ app.use(express.json());
 // ✅ Express session (for Passport)
 app.use(
   session({
-    secret: process.env.JWT_SECRET,
+    secret: process.env.JWT_SECRET || "supersecret", // fallback if env missing
     resave: false,
     saveUninitialized: false,
   })
@@ -35,7 +36,7 @@ app.use(passport.session());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // In production, set to your frontend URL
+    origin: "*", // ⚠️ Production me yaha apne frontend ka URL daalna
     methods: ["GET", "POST"],
   },
 });
@@ -48,11 +49,14 @@ app.get("/", (req, res) => {
 
 // ✅ MongoDB Connection
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Auth Routes
+// ✅ Auth Routes (Google Login, etc.)
 const authRoutes = require("./routes/auth");
 app.use("/auth", authRoutes);
 
@@ -70,7 +74,6 @@ app.get("/api/wallet/packages", (req, res) => {
 });
 
 // ✅ Middleware for Auth (JWT)
-const jwt = require("jsonwebtoken");
 const auth = (req, res, next) => {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
