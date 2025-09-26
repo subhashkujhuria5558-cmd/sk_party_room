@@ -6,6 +6,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const passport = require("passport");
 const session = require("express-session");
+const MongoStore = require("connect-mongo");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
@@ -19,12 +20,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Express session (for Passport)
+// ✅ Express session (MongoDB store ke sath)
 app.use(
   session({
-    secret: process.env.JWT_SECRET || "supersecret", // fallback if env missing
+    secret: process.env.JWT_SECRET || "supersecret", // fallback agar env missing ho
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      collectionName: "sessions",
+    }),
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24, // 1 din
+    },
   })
 );
 
@@ -36,7 +44,7 @@ app.use(passport.session());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // ⚠️ Production me yaha apne frontend ka URL daalna
+    origin: "*", // ⚠️ Production me apna frontend URL dalna
     methods: ["GET", "POST"],
   },
 });
