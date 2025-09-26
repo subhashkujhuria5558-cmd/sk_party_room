@@ -16,7 +16,10 @@
     "jsonwebtoken": "^9.0.2",
     "google-auth-library": "^9.0.0"
   },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   }
 }
