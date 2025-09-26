@@ -31,90 +31,9 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ User Schema
-const userSchema = new mongoose.Schema({
-  googleId: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  avatar: { type: String, default: "" },
-  coins: { type: Number, default: 1500 },
-  diamonds: { type: Number, default: 0 },
-  level: { type: Number, default: 1 },
-  gameStats: {
-    gamesPlayed: { type: Number, default: 0 },
-    gamesWon: { type: Number, default: 0 },
-    totalWinnings: { type: Number, default: 0 }
-  },
-  createdAt: { type: Date, default: Date.now }
-});
-const User = mongoose.model("User", userSchema);
-
-// ✅ Auth setup
-const { OAuth2Client } = require("google-auth-library");
-const jwt = require("jsonwebtoken");
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-const auth = (req, res, next) => {
-  try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
-    if (!token) return res.status(401).json({ success: false, message: "No token provided" });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    res.status(401).json({ success: false, message: "Invalid token" });
-  }
-};
-
-// ✅ Google OAuth Login
-app.post("/api/auth/google", async (req, res) => {
-  try {
-    const { token } = req.body;
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name, picture } = payload;
-
-    let user = await User.findOne({ googleId });
-    if (!user) {
-      user = new User({
-        googleId,
-        email,
-        name,
-        avatar: picture,
-        coins: 1500
-      });
-      await user.save();
-    }
-
-    const jwtToken = jwt.sign(
-      { userId: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "30d" }
-    );
-
-    res.json({
-      success: true,
-      token: jwtToken,
-      user
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, message: "Authentication failed" });
-  }
-});
-
-// ✅ Get current user
-app.get("/api/users/me", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId);
-    res.json({ success: true, user });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
+// ✅ Mount Routes
+const authRoutes = require("./routes/auth");
+app.use("/api/auth", authRoutes);
 
 // ✅ Wallet Packages
 app.get("/api/wallet/packages", (req, res) => {
@@ -128,6 +47,25 @@ app.get("/api/wallet/packages", (req, res) => {
   ];
   res.json({ success: true, packages });
 });
+
+// ✅ Middleware for Auth
+const jwt = require("jsonwebtoken");
+const auth = (req, res, next) => {
+  try {
+    const token = req.header("Authorization")?.replace("Bearer ", "");
+    if (!token) {
+      return res
+        .status(401)
+        .json({ success: false, message: "No token provided" });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    console.error("Auth error:", error);
+    res.status(401).json({ success: false, message: "Invalid token" });
+  }
+};
 
 // ✅ Recharge Wallet
 app.post("/api/wallet/recharge", auth, async (req, res) => {
@@ -149,11 +87,13 @@ app.post("/api/wallet/recharge", auth, async (req, res) => {
 
     res.json({ success: true, paymentData });
   } catch (error) {
+    console.error("Recharge error:", error);
     res.status(500).json({ success: false, message: "Payment creation failed" });
   }
 });
 
 // ✅ Verify Payment
+const User = require("./models/User"); // User model ko alag rakha to import karo
 app.post("/api/wallet/verify-payment", auth, async (req, res) => {
   try {
     const { coins } = req.body;
@@ -162,18 +102,63 @@ app.post("/api/wallet/verify-payment", auth, async (req, res) => {
     await user.save();
     res.json({ success: true, newBalance: user.coins });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Payment verification failed" });
+    console.error("Verify payment error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Payment verification failed" });
   }
 });
 
 // ✅ Games
 const defaultGames = [
-  { _id: "game1", name: "Slot Frenzy", entryFee: 100, minWin: 50, maxWin: 1000, winRate: 0.45 },
-  { _id: "game2", name: "Fishing Game", entryFee: 50, minWin: 25, maxWin: 500, winRate: 0.55 },
-  { _id: "game3", name: "Fruit Crush", entryFee: 75, minWin: 30, maxWin: 750, winRate: 0.5 },
-  { _id: "game4", name: "Lucky Wheel", entryFee: 100, minWin: 50, maxWin: 2000, winRate: 0.4 },
-  { _id: "game5", name: "Card Master", entryFee: 150, minWin: 75, maxWin: 1500, winRate: 0.42 },
-  { _id: "game6", name: "Number Blast", entryFee: 80, minWin: 40, maxWin: 800, winRate: 0.48 }
+  {
+    _id: "game1",
+    name: "Slot Frenzy",
+    entryFee: 100,
+    minWin: 50,
+    maxWin: 1000,
+    winRate: 0.45
+  },
+  {
+    _id: "game2",
+    name: "Fishing Game",
+    entryFee: 50,
+    minWin: 25,
+    maxWin: 500,
+    winRate: 0.55
+  },
+  {
+    _id: "game3",
+    name: "Fruit Crush",
+    entryFee: 75,
+    minWin: 30,
+    maxWin: 750,
+    winRate: 0.5
+  },
+  {
+    _id: "game4",
+    name: "Lucky Wheel",
+    entryFee: 100,
+    minWin: 50,
+    maxWin: 2000,
+    winRate: 0.4
+  },
+  {
+    _id: "game5",
+    name: "Card Master",
+    entryFee: 150,
+    minWin: 75,
+    maxWin: 1500,
+    winRate: 0.42
+  },
+  {
+    _id: "game6",
+    name: "Number Blast",
+    entryFee: 80,
+    minWin: 40,
+    maxWin: 800,
+    winRate: 0.48
+  }
 ];
 
 app.get("/api/games", (req, res) => {
@@ -187,11 +172,15 @@ app.post("/api/games/join", auth, async (req, res) => {
     const user = await User.findById(req.userId);
 
     if (!user || !game) {
-      return res.status(400).json({ success: false, message: "Invalid game or user" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid game or user" });
     }
 
     if (user.coins < game.entryFee) {
-      return res.status(400).json({ success: false, message: "Insufficient coins" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Insufficient coins" });
     }
 
     user.coins -= game.entryFee;
@@ -204,6 +193,7 @@ app.post("/api/games/join", auth, async (req, res) => {
       remainingCoins: user.coins
     });
   } catch (error) {
+    console.error("Game join error:", error);
     res.status(500).json({ success: false, message: "Game join failed" });
   }
 });
@@ -215,14 +205,18 @@ app.post("/api/games/play", auth, async (req, res) => {
     const user = await User.findById(req.userId);
 
     if (!user || !game) {
-      return res.status(400).json({ success: false, message: "Invalid game or user" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid game or user" });
     }
 
     const isWin = Math.random() < game.winRate;
     let winAmount = 0;
 
     if (isWin) {
-      winAmount = Math.floor(Math.random() * (game.maxWin - game.minWin) + game.minWin);
+      winAmount =
+        Math.floor(Math.random() * (game.maxWin - game.minWin + 1)) +
+        game.minWin;
       user.coins += winAmount;
       user.gameStats.gamesWon += 1;
       user.gameStats.totalWinnings += winAmount;
@@ -232,6 +226,7 @@ app.post("/api/games/play", auth, async (req, res) => {
 
     res.json({ success: true, isWin, winAmount, newBalance: user.coins });
   } catch (error) {
+    console.error("Game play error:", error);
     res.status(500).json({ success: false, message: "Game play failed" });
   }
 });
@@ -244,7 +239,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Start server (⚠️ FIXED: server.listen instead of app.listen)
+// ✅ Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`✅ SK Party Room running on port ${PORT}`);
