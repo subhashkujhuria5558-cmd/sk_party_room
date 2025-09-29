@@ -23,7 +23,7 @@ app.use(express.json());
 // ✅ Express session (MongoDB store ke sath)
 app.use(
   session({
-    secret: process.env.JWT_SECRET || "supersecret", // fallback agar env missing ho
+    secret: process.env.JWT_SECRET || "supersecret",
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
@@ -31,7 +31,7 @@ app.use(
       collectionName: "sessions",
     }),
     cookie: {
-      maxAge: 1000 * 60 * 60 * 24, // 1 din
+      maxAge: 1000 * 60 * 60 * 24,
     },
   })
 );
@@ -64,7 +64,7 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Auth Routes (Google Login, etc.)
+// ✅ Auth Routes
 const authRoutes = require("./routes/auth");
 app.use("/auth", authRoutes);
 
@@ -254,6 +254,24 @@ app.post("/api/games/play", auth, async (req, res) => {
     }
 
     await user.save();
+
+    // ✅ Update leaderboard collection
+    const Leaderboard = mongoose.connection.collection("leaderboard");
+    await Leaderboard.updateOne(
+      { userId: user._id.toString() },
+      { $set: { userName: user.name, score: user.coins, updatedAt: new Date() } },
+      { upsert: true }
+    );
+
+    // ✅ Get top 1 player and broadcast to everyone
+    const top = await Leaderboard.find({})
+      .sort({ score: -1, updatedAt: -1 })
+      .limit(1)
+      .toArray();
+
+    if (top[0]) {
+      io.emit("top1", top[0]); // 🔥 live broadcast
+    }
 
     res.json({ success: true, isWin, winAmount, newBalance: user.coins });
   } catch (error) {
