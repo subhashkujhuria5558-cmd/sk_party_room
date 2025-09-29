@@ -17,6 +17,11 @@
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
+    <!-- 🔥 Top Player Banner -->
+    <div id="top-player-banner" class="bg-black text-yellow-400 text-center py-2">
+        🏆 Waiting for top player...
+    </div>
+
     <!-- Loading Screen -->
     <div id="loading-screen" class="fixed inset-0 gradient-bg flex items-center justify-center z-50">
         <div class="text-center">
@@ -187,5 +192,22 @@
     </div>
 
     <script src="app.js"></script>
+
+    <!-- 🔥 Socket.io Script -->
+    <script>
+        const socket = io("https://sk-party-room.onrender.com/auth/google/callback"); // apna render backend URL daalna
+
+        socket.on("connect", () => {
+            console.log("✅ Connected to server:", socket.id);
+        });
+
+        socket.on("top1", (player) => {
+            console.log("🏆 Current Top Player:", player.userName, player.score);
+            const banner = document.getElementById("top-player-banner");
+            if (banner) {
+                banner.innerText = `🏆 ${player.userName} is #1 with ${player.score} points!`;
+            }
+        });
+    </script>
 </body>
 </html>
